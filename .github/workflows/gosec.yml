@@ -1,0 +1,31 @@
+name: Gosec Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  gosec:
+    name: Gosec Scan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        dir: [healthcheck-http, healthcheck-sql, healthcheck-fcgi]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - name: Install Gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+      - name: Run Gosec
+        working-directory: ${{ matrix.dir }}
+        run: gosec ./... 2>&1 | tee gosec-results.txt
+      - name: Publish Gosec Report
+        if: always()
+        run: |
+          echo "Gosec ${{ matrix.service }} Results" >> $GITHUB_STEP_SUMMARY
+          cat ${{ matrix.dir }}/gosec-results.txt >> $GITHUB_STEP_SUMMARY
