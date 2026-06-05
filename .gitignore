@@ -1,0 +1,10 @@
+healthcheck-http/healthcheck
+healthcheck-http/healthcheck-http
+healthcheck-sql/healthcheck-mysql
+healthcheck-sql/healthcheck-sql
+healthcheck-fcgi/healthcheck-fcgi
+
+*/packages/
+*.tar
+melange.rsa
+melange.rsa.pub
