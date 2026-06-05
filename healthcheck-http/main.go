@@ -16,7 +16,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode <= 400 && resp.StatusCode >= 200 {
+	if resp.StatusCode < 400 && resp.StatusCode >= 200 {
 		fmt.Fprintf(os.Stdout, "OK: Healthcheck for %s return %d\n", *url, resp.StatusCode)
 		os.Exit(0)
 	}

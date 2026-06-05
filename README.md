@@ -1,24 +1,34 @@
 # melange-forge
 
-A lightweight Go toolkit providing minimal, statically compiled healthcheck binaries for distroless OCI images built with apko/melange.
+Lightweight, statically compiled Go binaries for distroless OCI images, packaged as apk via melange.
 
 ## Why
 
-Distroless images have no shell, no `curl`, no `wget`. Docker healthchecks need a binary. This repo provides minimal, statically compiled healthcheck binaries packaged as apk packages via melange, ready to be embedded in any apko image.
+Distroless images have no shell, no `curl`, no `wget`. Some operations still require small binaries: healthchecks, probes, utilities. This repo provides minimal, statically compiled Go binaries packaged as apk packages via melange, ready to be embedded in any apko image.
+
+Each binary is:
+- Statically compiled (`CGO_ENABLED=0`)
+- Signed and indexed as an apk package
+- Tracked in the image SBOM via apko
+- Scanned for vulnerabilities via Gosec CI
 
 ## Structure
 
 ```
 melange-forge/
 ├── healthcheck-http/
-│   ├── main.go                  # HTTP healthcheck binary
+│   ├── main.go                  # HTTP probe binary
 │   ├── healthcheck-http.yaml    # melange build config
 │   └── go.mod
-└── healthcheck-sql/
-    ├── main.go                  # MariaDB/MySQL healthcheck binary
-    ├── healthcheck-sql.yaml     # melange build config
-    ├── go.mod
-    └── go.sum
+├── healthcheck-sql/
+│   ├── main.go                  # MariaDB/MySQL probe binary
+│   ├── healthcheck-sql.yaml     # melange build config
+│   ├── go.mod
+│   └── go.sum
+└── healthcheck-fcgi/
+    ├── main.go                  # FastCGI TCP probe binary
+    ├── healthcheck-fcgi.yaml    # melange build config
+    └── go.mod
 ```
 
 ## Binaries
@@ -36,16 +46,27 @@ Flags:
 
 ### healthcheck-sql
 
-Performs a ping against a MariaDB/MySQL server and exits 0 if the server responds.
+Performs a ping against a MariaDB/MySQL server and exits 0 if the server responds. Reads the password from a file (tmpfs/secret) and locks memory via `mlock` to prevent the password from being swapped to disk.
 
 ```
-Usage: healthcheck-sql --host=<host> --port=<port> --user=<user> --password=<password>
+Usage: healthcheck-sql --host=<host> --port=<port> --user=<user> --secret=<path>
 
 Flags:
-  --host      MariaDB host (default: localhost)
-  --port      MariaDB port (default: 3306)
-  --user      MariaDB user (default: root)
-  --password  MariaDB password (default: "")
+  --host    MariaDB host (default: localhost)
+  --port    MariaDB port (default: 3306)
+  --user    MariaDB user (default: root)
+  --secret  Path to password file (default: /run/secrets/mysql_password)
+```
+
+### healthcheck-fcgi
+
+Opens a TCP connection to a FastCGI server (e.g. php-fpm) and exits 0 if the connection succeeds.
+
+```
+Usage: healthcheck-fcgi --addr=<host:port>
+
+Flags:
+  --addr  FastCGI address (default: localhost:9000)
 ```
 
 ## Build
@@ -63,12 +84,6 @@ melange keygen
 
 ```bash
 melange build healthcheck-http/healthcheck-http.yaml \
-  --arch amd64 \
-  --signing-key melange.rsa
-```
-
-```bash
-melange build healthcheck-sql/healthcheck-sql.yaml \
   --arch amd64 \
   --signing-key melange.rsa
 ```
@@ -101,7 +116,7 @@ healthcheck:
 
 ## Roadmap
 
-More healthcheck binaries will be added over time as new services require them.
+More binaries will be added over time as new services require them.
 
 ## License
 
