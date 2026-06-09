@@ -30,8 +30,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install melange
-        run: curl -sSfL https://github.com/chainguard-dev/melange/releases/latest/download/melange_linux_amd64 -o /usr/local/bin/melange && chmod +x /usr/local/bin/melange
+      - uses: chainguard-dev/actions/setup-melange@main
+        with:
+          version: latest-release
 
       - name: Run melange
         working-directory: APK/${{ matrix.service }}
@@ -77,8 +78,9 @@ jobs:
           with:
             path: dist/
 
-        - name: Install melange
-          run: curl -sSfL https://github.com/chainguard-dev/melange/releases/latest/download/melange_linux_amd64 -o /usr/local/bin/melange && chmod +x /usr/local/bin/melange
+        - uses: chainguard-dev/actions/setup-melange@main
+          with:
+            version: latest-release
 
         - name: Generate global APKINDEX
           run: |
