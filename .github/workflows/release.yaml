@@ -88,7 +88,7 @@ jobs:
             cp dist/**/*.apk dist/x86_64/
             echo "${{ secrets.MELANGE_RSA_KEY }}" > $RUNNER_TEMP/melange-ci.rsa
             chmod 600 $RUNNER_TEMP/melange-ci.rsa
-            melange index --signing-key $RUNNER_TEMP/melange-ci.rsa dist/x86_64/
+            melange index --signing-key $RUNNER_TEMP/melange-ci.rsa --output dist/x86_64/APKINDEX.tar.gz dist/x86_64/*.apk
 
         - name: Create release
           uses: softprops/action-gh-release@v2
