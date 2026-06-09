@@ -95,6 +95,6 @@ jobs:
           with:
             files: |
               dist/x86_64/APKINDEX.tar.gz
-              dist/**/*.apk
+              dist/x86_64/*.apk
               dist/issue-reporter/issue-reporter
-              melange-ci.rsa.pub
+              melange-ci.pub
