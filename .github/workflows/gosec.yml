@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        dir: [healthcheck-http, healthcheck-sql, healthcheck-fcgi]
+        dir: [APK/healthcheck-http, APK/healthcheck-sql, APK/healthcheck-fcgi]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
