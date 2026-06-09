@@ -1,10 +1,16 @@
-healthcheck-http/healthcheck
-healthcheck-http/healthcheck-http
-healthcheck-sql/healthcheck-mysql
-healthcheck-sql/healthcheck-sql
-healthcheck-fcgi/healthcheck-fcgi
+APK/healthcheck-http/healthcheck
+APK/healthcheck-http/healthcheck-http
+APK/healthcheck-sql/healthcheck-mysql
+APK/healthcheck-sql/healthcheck-sql
+APK/healthcheck-fcgi/healthcheck-fcgi
 
 */packages/
 *.tar
 melange.rsa
 melange.rsa.pub
+
+
+APK/*/packages/
+issue-reporter/issue-reporter
+issue-reporter/report
+melange-ci.rsa
