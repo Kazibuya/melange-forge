@@ -97,7 +97,7 @@ jobs:
               dist/x86_64/APKINDEX.tar.gz
               dist/x86_64/*.apk
               dist/issue-reporter/issue-reporter
-              melange-ci.pub
+              melange-ci.rsa.pub
 
   publish-pages:
     needs: release
@@ -118,9 +118,10 @@ jobs:
         run: |
           mkdir -p x86_64
           cp dist/**/*.apk x86_64/
+          curl -sL https://github.com/Kazibuya/melange-forge/releases/download/${{ github.ref_name }}/melange-ci.rsa.pub -o melange-ci.rsa.pub
           curl -sL https://github.com/Kazibuya/melange-forge/releases/download/${{ github.ref_name }}/APKINDEX.tar.gz -o x86_64/APKINDEX.tar.gz
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
-          git add x86_64/
+          git add x86_64/ melange-ci.rsa.pub
           git commit -m "release ${{ github.ref_name }}" || echo "nothing to commit"
           git push origin gh-pages
