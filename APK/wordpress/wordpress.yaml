@@ -33,7 +33,6 @@ pipeline:
       rm wordpress-${{package.version}}.tar.gz wordpress-${{package.version}}.tar.gz.sha1
       cp docker-entrypoint.sh "${{targets.destdir}}/var/www/html" || true
       cp wp-config-docker.php "${{targets.destdir}}/var/www/html" || true
-      chown -R 65532:65532 "${{targets.destdir}}/var/www/html"
 
 subpackages:
   - name: ${{package.name}}-oci-entrypoint
