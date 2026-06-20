@@ -21,17 +21,19 @@ environment:
     packages:
       - busybox
       - ca-certificates-bundle
-      - git
+      - wget
 
 pipeline:
-  - uses: git-checkout
-    with:
-      repository: https://github.com/wordpress/wordpress
-      tag: ${{package.version}}
-      expected-commit: 97b7f62adb5d8864c3fac554bc7182d9fd754a41
-      destination: "${{targets.destdir}}/var/www/html"
   - runs: |
-      cp wp-config-docker.php "${{targets.destdir}}/var/www/html"
+      mkdir -p "${{targets.destdir}}/var/www/html"
+      wget -q https://wordpress.org/wordpress-${{package.version}}.tar.gz
+      wget -q https://wordpress.org/wordpress-${{package.version}}.tar.gz.sha1
+      echo "$(cat wordpress-${{package.version}}.tar.gz.sha1)  wordpress-${{package.version}}.tar.gz" | sha1sum -c -
+      tar xzf wordpress-${{package.version}}.tar.gz --strip-components=1 -C "${{targets.destdir}}/var/www/html"
+      rm wordpress-${{package.version}}.tar.gz wordpress-${{package.version}}.tar.gz.sha1
+      cp docker-entrypoint.sh "${{targets.destdir}}/var/www/html" || true
+      cp wp-config-docker.php "${{targets.destdir}}/var/www/html" || true
+      chown -R 65532:65532 "${{targets.destdir}}/var/www/html"
 
 subpackages:
   - name: ${{package.name}}-oci-entrypoint
@@ -76,6 +78,5 @@ test:
 
 update:
   enabled: true
-  github:
-    identifier: wordpress/wordpress
-    use-tag: true
+  release-monitor:
+    identifier: 4099
