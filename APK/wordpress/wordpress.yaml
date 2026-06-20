@@ -32,7 +32,6 @@ pipeline:
       destination: "${{targets.destdir}}/var/www/html"
   - runs: |
       cp wp-config-docker.php "${{targets.destdir}}/var/www/html"
-      chown -R 65532:65532 "${{targets.destdir}}/var/www/html"
 
 subpackages:
   - name: ${{package.name}}-oci-entrypoint
