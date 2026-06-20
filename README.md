@@ -1,47 +1,71 @@
 # melange-forge
 
-Lightweight, statically compiled Go binaries for distroless OCI images, packaged as apk via melange.
+Private APK registry and Go binary toolkit for distroless OCI images, built with [melange](https://github.com/chainguard-dev/melange) and [apko](https://github.com/chainguard-dev/apko).
 
-## Why
+## What
 
-Distroless images have no shell, no `curl`, no `wget`. Some operations still require small binaries: healthchecks, probes, utilities. This repo provides minimal, statically compiled Go binaries packaged as apk packages via melange, ready to be embedded in any apko image.
+Two things live here.
 
-Each binary is:
-- Statically compiled (`CGO_ENABLED=0`)
-- Signed and indexed as an apk package
-- Tracked in the image SBOM via apko
-- Scanned for vulnerabilities via Gosec CI
+**APK packages** compiled with melange, signed, indexed, and published to GitHub Pages as a self-hosted APK registry. Currently covering a web stack (WordPress, Angie, MariaDB, phpMyAdmin, wp-cli, step-ca) but not limited to it the registry grows with the lab. Chainguard's ecosystem is progressively closing down and adding packages to their registry is increasingly difficult, so this repo provides a self-hosted alternative where we stay in control of what gets packaged and when.
+
+**Go healthcheck binaries** for distroless OCI containers that have no shell, no curl, no wget. Each binary is statically compiled, signed as an APK package, and tracked in the image SBOM via apko.
 
 ## Structure
 
 ```
 melange-forge/
-├── healthcheck-http/
-│   ├── main.go                  # HTTP probe binary
-│   ├── healthcheck-http.yaml    # melange build config
-│   └── go.mod
-├── healthcheck-sql/
-│   ├── main.go                  # MariaDB/MySQL probe binary
-│   ├── healthcheck-sql.yaml     # melange build config
-│   ├── go.mod
-│   └── go.sum
-├── healthcheck-fcgi/
-│   ├── main.go                  # FastCGI TCP probe binary
-│   ├── healthcheck-fcgi.yaml    # melange build config
-│   └── go.mod
-└── issue-reporter/
-    ├── main.go                  # CVE report formatter
-    ├── grype.go                 # grype report structs
-    ├── sbom.go                  # SPDX SBOM structs
-    ├── report.go                # markdown body generator
-    └── go.mod
+├── APK/
+│   ├── angie/
+│   ├── healthcheck-fcgi/
+│   ├── healthcheck-http/
+│   ├── healthcheck-sql/
+│   ├── mariadb/
+│   ├── phpmyadmin/
+│   ├── step-ca/
+│   ├── wordpress/
+│   └── wp-cli/
+├── pipelines/          ← wolfi-dev/os pipelines (vendored)
+├── issue-reporter/     ← CVE report formatter
+└── .github/workflows/
+    └── release.yaml
 ```
 
-## Binaries
+## APK registry
+
+Packages are published to GitHub Pages on each tag push:
+
+```
+https://kazibuya.github.io/melange-forge/x86_64/
+```
+
+Public key available at:
+
+```
+https://kazibuya.github.io/melange-forge/melange-ci.rsa.pub
+```
+
+Usage in an `apko.yaml`:
+
+```yaml
+contents:
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    - https://kazibuya.github.io/melange-forge/melange-ci.rsa.pub
+  repositories:
+    - https://packages.wolfi.dev/os
+    - https://kazibuya.github.io/melange-forge
+  packages:
+    - angie
+    - wordpress
+```
+
+Note: MariaDB is excluded from the automatic release matrix (build time exceeds CI limits) and must be triggered manually via `workflow_dispatch`.
+
+## Go binaries
 
 ### healthcheck-http
 
-Performs an HTTP GET and exits 0 if the response code is between 200 and 399.
+HTTP GET probe. Exits 0 if the response code is between 200 and 399.
 
 ```
 Usage: healthcheck-http --url=<url>
@@ -52,7 +76,7 @@ Flags:
 
 ### healthcheck-sql
 
-Performs a ping against a MariaDB/MySQL server and exits 0 if the server responds. Reads the password from a file (tmpfs/secret) and locks memory via `mlock` to prevent the password from being swapped to disk.
+MariaDB/MySQL ping probe. Reads the password from a file (tmpfs/secret) and locks memory via `mlock` to prevent swapping.
 
 ```
 Usage: healthcheck-sql --host=<host> --port=<port> --user=<user> --secret=<path>
@@ -66,7 +90,7 @@ Flags:
 
 ### healthcheck-fcgi
 
-Opens a TCP connection to a FastCGI server (e.g. php-fpm) and exits 0 if the connection succeeds.
+TCP connection probe for FastCGI servers (e.g. php-fpm). Exits 0 if the connection succeeds.
 
 ```
 Usage: healthcheck-fcgi --addr=<host:port>
@@ -77,105 +101,54 @@ Flags:
 
 ### issue-reporter
 
-Parses a grype JSON report and an optional apko SPDX SBOM, then outputs one JSON object per CVE on stdout. Designed to be piped into `gh issue create` in a GitHub Actions workflow.
+Still in development. Consumes scan reports from a security pipeline (syft, grype, malcontent) and automatically opens GitHub issues for findings. Designed to run as the final step of a CI security workflow scan, parse, deduplicate, report.
+
+The pipeline it integrates into: syft generates the SBOM, grype scans for CVEs, malcontent detects suspicious behaviors, issue-reporter aggregates the results and opens one issue per finding with severity labels.
 
 Each output line contains:
-- `title` — CVE ID + affected package + version
-- `body` — formatted markdown with severity, CVSS score, EPSS, fix status, references, and upstream source from SBOM
-- `severity` — lowercase severity for use as a GitHub label
-
-```
-Usage: issue-reporter --grype=<path> [--sbom=<path>] [--severity=<filter>]
-
-Flags:
-  --grype     Path to grype JSON report (default: grype-report.json)
-  --sbom      Path to apko SPDX SBOM (optional, enriches output with upstream source)
-  --severity  Comma-separated severity filter (default: high,critical)
-```
-
-Example output:
 
 ```json
 {"title":"CVE-2026-8376 in perl:5.42.2-r2","body":"**Severity:** Critical\n...","severity":"critical"}
 ```
 
-Example GHA usage:
-
-```yaml
-- name: Open issues if CVE found
-  env:
-    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  run: |
-    ./issue-reporter --grype=grype-report.json --sbom=melange/mariadb/sbom-x86_64.spdx.json | \
-    while read -r line; do
-      title=$(echo "$line" | jq -r '.title')
-      body=$(echo "$line" | jq -r '.body')
-      severity=$(echo "$line" | jq -r '.severity')
-      EXISTING=$(gh issue list --label security --state open --json title \
-        | jq -r '.[].title' | grep "$title" || true)
-      if [ -z "$EXISTING" ]; then
-        gh issue create --title "$title" --body "$body" \
-          --label "security" --label "severity:$severity"
-      fi
-    done
-```
-
-## Build
-
-### Prerequisites
-
-- [melange](https://github.com/chainguard-dev/melange)
-- A signing key
-
-```bash
-melange keygen
-```
-
-### Build a package
-
-```bash
-melange build healthcheck-http/healthcheck-http.yaml \
-  --arch amd64 \
-  --signing-key melange.rsa
-```
-
-## Usage in apko.yaml
-
-```yaml
-contents:
-  keyring:
-    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
-    - ./melange.rsa.pub
-  repositories:
-    - https://packages.wolfi.dev/os
-    - /path/to/melange-forge/healthcheck-http/packages
-  packages:
-    - wolfi-baselayout
-    - your-service
-    - healthcheck-http
-```
-
-Then in your docker-compose:
-
-```yaml
-healthcheck:
-  test: ["CMD", "healthcheck-http", "--url=http://localhost:8080/status/"]
-  interval: 10s
-  timeout: 5s
-  retries: 5
-```
-
 ## CI
 
-A GitHub Actions workflow runs Gosec on all `*.go` files on every push and pull request to `main`. The scan results are published in the job summary. The workflow blocks on any finding: no `|| true`.
+### Release workflow
+
+Triggered on tag push (`v*`). Builds all APK packages in parallel via a matrix, generates a global APKINDEX, creates a GitHub Release with all artifacts, and publishes to GitHub Pages.
+
+MariaDB is excluded from the matrix and has a dedicated `workflow_dispatch` job with a 120-minute timeout.
+
+### Gosec
+
+Runs on every push and pull request to `main`. Scans all `*.go` files. Blocks on any finding.
+
+## Local build
+
+Prerequisites: [melange](https://github.com/chainguard-dev/melange)
+
+```bash
+# Generate signing key
+melange keygen
+
+# Build a package
+melange build APK/angie/angie.yaml \
+  --arch amd64 \
+  --signing-key melange.rsa \
+  --pipeline-dir pipelines
+```
+
+## Secrets
+
+One secret is required in GitHub Actions:
+
+`MELANGE_RSA_KEY` private signing key generated by `melange keygen`.
+
+The corresponding public key (`melange-ci.rsa.pub`) is committed at the repo root and published with each release.
 
 ## Roadmap
 
-- Refactor Gosec CI to scan all `*.go` files in a single pass instead of a matrix per service
-- GitHub Actions release workflow to publish `issue-reporter` as a binary artifact on each tag
+- Terraform ephemeral runner for MariaDB build (OVH)
 - `issue-reporter`: include image name in issue title and body
 - `issue-reporter`: CycloneDX SBOM support in addition to SPDX
-
-## License
-
-MIT
+- `repository_dispatch` from melange-forge to downstream image repos on release
